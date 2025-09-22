@@ -2,6 +2,11 @@ import User from '../models/User.js';
 import Profile from '../models/Profile.js';
 import { verifyToken } from '../config/jwt.js';
 import jwt from 'jsonwebtoken';
+import { uploadSingle } from '../Middleware/multer.js';
+import { cloudinaryUpload } from '../config/coludinary.js';
+import path from 'path';
+import geminiResponse from '../gemini.js';
+import moment from 'moment/moment.js';
 
 export const UserController = {
     // Get current user
@@ -42,6 +47,9 @@ export const UserController = {
                     _id: user._id,
                     name: user.name,
                     email: user.email,
+                    assistantImage:user.assistantImage,
+                    assistantName:user.assistantName,
+                    history:user.history
                 }
             });
 
@@ -122,6 +130,57 @@ export const UserController = {
         }
     },
 
+    async updateassistant(req, res) {
+        try {
+            const { assistantname, imgUrl } = req.body;
+
+            // If multer stored a file, req.file will be present
+            let assistantImageValue = null;
+            if (req.file) {
+                // Determine file path robustly
+                const filePath = req.file.path || (req.file.destination && req.file.filename ? path.join(req.file.destination, req.file.filename) : null);
+                const fileType = req.file.mimetype || req.file.type;
+                const fileSize = req.file.size || (req.file.size === 0 ? 0 : undefined);
+
+                if (!filePath) {
+                    console.warn('No local file path found on req.file:', req.file);
+                }
+
+                const uploadRes = await cloudinaryUpload({
+                    filePath,
+                    fileType,
+                    fileSize,
+                    folder: 'assistant_images'
+                });
+
+                if (uploadRes && typeof uploadRes === 'object') {
+                    if (uploadRes.success && uploadRes.data && uploadRes.data.url) {
+                        assistantImageValue = String(uploadRes.data.url);
+                    } else {
+                        console.warn('Cloudinary upload failed or returned invalid response:', uploadRes);
+                        assistantImageValue = imgUrl || null;
+                    }
+                } else if (typeof uploadRes === 'string') {
+                    assistantImageValue = uploadRes;
+                } else {
+                    assistantImageValue = imgUrl || null;
+                }
+            } else {
+                assistantImageValue = imgUrl || null;
+            }
+                      const update = {};
+            if (assistantname) update.assistantName = assistantname;
+            if (assistantImageValue) update.assistantImage = String(assistantImageValue);
+
+            const user = await User.findByIdAndUpdate(req.userId, update, { new: true }).select('-password');
+
+            return res.status(200).json({ message: 'Assistant updated successfully', user });
+        } catch (error) {
+            console.error('Update assistant error:', error);
+            res.status(500).json({ message: error.message });
+        }
+    },
+
     // Search users
     async searchUsers(req, res) {
         try {
@@ -137,7 +196,96 @@ export const UserController = {
         } catch (error) {
             res.status(500).json({ message: error.message });
         }
+    },
+
+
+    async asktoassistant(req, res){
+   
+        try{
+            const {command}=req.body;
+            const user=await User.findById(req.userId);
+            const username=user.name;
+            const assistantname=user.assistantName;
+            const response=await geminiResponse(command,assistantname,username);
+            
+            const jsonmatch=response.match(/{.*}/s);
+            if (!jsonmatch) {
+                 return res.status(500).json({
+                    message:"Invalid response from assistant"
+                 })
+            }
+
+
+            const geminires = JSON.parse(jsonmatch[0]);
+            const type = geminires.type;
+            const userInput = geminires.userinput || geminires.userInput;
+
+            switch (type) {
+                case 'get_date': {
+                    const currentDate = moment().format('YYYY-MM-DD');
+                    return res.json({ type, userInput, response: `Current date is ${currentDate}` });
+                }
+                case 'get_time': {
+                    const currentTime = moment().format('HH:mm:ss');
+                    return res.json({ type, userInput, response: `Current time is ${currentTime}` });
+                }
+                case 'get_day': {
+                    const currentDay = moment().format('dddd');
+                    return res.json({ type, userInput, response: `Today is ${currentDay}` });
+                }
+                case 'get_month': {
+                    const currentMonth = moment().format('MMMM');
+                    return res.json({ type, userInput, response: `Current month is ${currentMonth}` });
+                }
+                case 'general':
+                case 'google_search':
+                case 'youtube_search':
+                case 'youtube_play':
+                case 'calculator_open':
+                case 'instagram_open':
+                case 'facebook_open':
+                case 'weather_show':
+                case 'set_alarm':
+                case 'set_reminder':
+                case 'open_maps':
+                case 'get_directions':
+                case 'news_show':
+                case 'play_music':
+                case 'pause_music':
+                case 'next_song':
+                case 'previous_song':
+                case 'open_whatsapp':
+                case 'send_message':
+                case 'make_call':
+                case 'translation':
+                case 'smart_home_control':
+                case 'notes_create':
+                case 'notes_read':
+                case 'calendar_event':
+                case 'timer_set':
+                case 'timer_cancel':
+                case 'email_send':
+                case 'system_control': {
+                    // For these, just echo Gemini's response field
+                    return res.json({ type, userInput, response: geminires.response });
+                }
+                default:
+                    return res.status(400).json({ message: `Unknown intent type: ${type}` });
+            }
+
+        }
+        catch(error)
+        {
+            console.log(error);
+            return res.status(500).json({message:"Assistant error occurred",
+                error:error.message
+
+            })
+            
+        }
+
     }
+
 };
 
 export default UserController;

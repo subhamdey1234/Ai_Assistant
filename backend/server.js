@@ -6,6 +6,7 @@ import authrouter from "./Routes/Userroute.js";
 import cookieParser from "cookie-parser";
 import cors from "cors";
 import profilerouter from "./Routes/Userprofileroute.js";
+import geminiResponse from "./gemini.js";
 
 
 const app = express();
@@ -25,6 +26,15 @@ app.use(cookieParser());
 
 app.use("/api/auth", authrouter);
 app.use("/api/user",profilerouter);
+app.get("/", async (req, res) => {
+    try {
+        const prompt = req.query.prompt;
+        const data = await geminiResponse(prompt);
+        res.json(data);
+    } catch (err) {
+        res.status(500).json({ error: err.message || "Gemini API error" });
+    }
+});
 
 const PORT = process.env.PORT || 5000;
 

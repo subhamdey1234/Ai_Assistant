@@ -39,7 +39,7 @@ function Login() {
       if (result.success) {
         // If the user was redirected to login from a protected route, go back there
         const redirectTo = '/customize';
-        navigate(redirectTo, { replace: true });
+        navigate(redirectTo);
             } else {
                 setError(result.message || 'Login failed');
             }

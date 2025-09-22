@@ -15,10 +15,15 @@ const userSchema = new Schema({
         required:true,
         unique:true
     },
-    AssistantName:{
-        type:String,
-        
+   
+    assistantImage:{
+    type:String,
+
 },
+    assistantName:{
+        type:String
+    },
+
    history:[
     {type:String}
    ],

@@ -1,6 +1,6 @@
 import axios from "axios";
 import { createContext, useEffect, useState, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 
 // Create the context
 export const Context = createContext();
@@ -20,9 +20,16 @@ const api = axios.create({
 // Create the provider component
 export function ContextProvider({ children }) {
     const navigate = useNavigate();
-    const [userdata, setUserdata] = useState(null);
+    const location = useLocation();
+    const [userdata, setUserdata] = useState();
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(null);
+    const [frontimage,setfrontendimage]=useState(null);
+    const [backendimage,setbackendimage]=useState(null);
+    const [selectedimage,setselectedimage]=useState(null);
+
+
+
 
     // Intercept all requests to add token
     api.interceptors.request.use((config) => {
@@ -41,7 +48,8 @@ export function ContextProvider({ children }) {
             if (error.response?.status === 401) {
                 localStorage.removeItem('token');
                 setUserdata(null);
-                navigate('/login');
+                // Use replace so history doesn't keep protected routes
+                navigate('/login', { replace: true });
             }
             return Promise.reject(error);
         }
@@ -76,6 +84,20 @@ export function ContextProvider({ children }) {
         }
     }, [navigate]);
 
+
+    const geminiresponse=async(command)=>{
+        try {
+            const result=await api.post('/api/user/askassitant', { command });
+            return result.data;
+
+        } catch (error) {
+            console.log(error);
+                return {err:error.message};
+            
+        }
+    }
+
+
     useEffect(() => {
         handleuserdata();
     }, [handleuserdata]);
@@ -93,7 +115,8 @@ export function ContextProvider({ children }) {
                 const token = (typeof returned === 'string' && returned.startsWith('Bearer ')) ? returned.slice(7) : returned;
                 localStorage.setItem('token', token);
                 setUserdata(response.data.user);
-                navigate('/');
+                // Always redirect to customize after login
+                navigate('/customize' , {replace: true});
                 return { success: true };
             }
             
@@ -108,10 +131,23 @@ export function ContextProvider({ children }) {
         }
     }, [navigate]);
 
-    const logout = useCallback(() => {
-        localStorage.removeItem('token');
-        setUserdata(null);
-        navigate('/login');
+    const logout = useCallback(async () => {
+        try {
+            // Call backend to clear cookie / server session
+            await api.post('/api/auth/logout');
+        } catch (err) {
+            // Log but continue with client-side logout
+            console.warn('Logout API call failed:', err?.response?.data || err.message);
+        } finally {
+            localStorage.removeItem('token');
+            setUserdata(null);
+            // clear image selections
+            setbackendimage(null);
+            setfrontendimage(null);
+            setselectedimage(null);
+            // Replace current history entry so Back won't return to protected pages
+            navigate('/login', { replace: true });
+        }
     }, [navigate]);
 
     const contextValue = {
@@ -123,7 +159,14 @@ export function ContextProvider({ children }) {
         setUserdata,
         handleuserdata,
         login,
-        logout
+        logout,
+        frontimage,
+        backendimage,
+        setbackendimage,
+        setfrontendimage,
+        selectedimage,
+        setselectedimage,
+        geminiresponse
     };
 
     return (
