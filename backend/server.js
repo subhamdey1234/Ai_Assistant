@@ -12,7 +12,7 @@ import geminiResponse from "./gemini.js";
 const app = express();
 
 app.use(cors({
-    origin:'https://myvirtualassistant11.netlify.app',
+    origin:'https://myvirtualassistant11.netlify.app/',
     credentials:true,
 }))
 
