@@ -6,11 +6,11 @@ dotenv.config();
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY  
 const MODEL = "gemini-2.5-flash"; // ✅ safer choice, widely available
 
-const geminiResponse = async (command, assistantName, username) => {
+const geminiResponse = async (command, assistantName) => {
   try {
     const apiUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${GEMINI_API_KEY} `;
 
-    const prompt = `You are a virtual assistant named ${assistantName} created by ${username}.
+    const prompt = `You are a virtual assistant named ${assistantName} created by Subham Dey .
 You are not Google. You will now behave like a voice-enabled assistant.
 
 Your task is to understand the user's natural language input and respond with a JSON object like this:
